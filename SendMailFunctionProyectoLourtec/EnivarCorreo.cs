@@ -7,29 +7,66 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using System.Net.Mail;
+using System.Net;
 
 namespace SendMailFunctionProyectoLourtec
 {
     public static class EnivarCorreo
     {
-        [FunctionName("EnviarCorreo")]
+        [FunctionName("SendMail")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "sendemail")] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
 
-            string name = req.Query["name"];
+            string smtpAuthUsername = "user";
+            string smtpAuthPassword = "pasword";
+            string subject = "Hola esta es una prueba de correo desde azure";
+            var htmlContent = "<html><body><h1>Quick send email test</h1><br/><h4>This email message is sent from Azure Communication Service Email.</h4><p>Elaborado por David Chaprro</p></body></html>";
+           // var htmlContent = "Hello there";
+         
+            string sender = "donotreply@1bff0bb0-5c95-40e3-8211-b37e0347d836.azurecomm.net";
+            string recipient = "davidjosechaparro@hotmail.com";
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+            try
+            {
+                SmtpClient cliente = new SmtpClient();
+                cliente.UseDefaultCredentials = false;
+                cliente.Credentials = new NetworkCredential(smtpAuthUsername, smtpAuthPassword);
+                cliente.Port = 587;
+                cliente.Host = "smtp.azurecomm.net";
+                cliente.DeliveryMethod = SmtpDeliveryMethod.Network;
+                cliente.EnableSsl = true;
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
+                log.LogInformation("sendemail client constructed");
 
-            return new OkObjectResult(responseMessage);
+                MailMessage _mailMessage = new MailMessage();
+                _mailMessage.From = new MailAddress( sender);
+                _mailMessage.To.Add(recipient);
+                _mailMessage.Subject = subject;
+                _mailMessage.IsBodyHtml = true;
+                _mailMessage.Body = htmlContent;
+
+
+                log.LogInformation("sendemail mail constructed");
+
+                cliente.Send(_mailMessage);
+
+                return new OkObjectResult(true);
+            }
+            catch ( Exception ex)
+            {
+                log.LogInformation("sendemail failed " + ex.Message);
+                log.LogInformation("sendemail failed " + ex);
+                System.Diagnostics.Trace.TraceError(ex.Message);
+                var errorObjectResult = new ObjectResult(ex.Message);
+                errorObjectResult.StatusCode = StatusCodes.Status500InternalServerError;
+
+                return new OkObjectResult(true);
+            }
+
+           
         }
     }
 }
